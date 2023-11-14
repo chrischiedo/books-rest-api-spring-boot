@@ -432,9 +432,9 @@ Here are a few things that I would do differently in a production environment:
 ## Areas of improvement
 
 - **Auth/Access control**: Currently, any registered user with the role of "USER" can edit/update the details of another user's book. Ideally, this shouldn't be the case. Every book should be associated with a particular user (the so-called "owner" of the book). Only the "owner" or "creator" of a book should be allowed to update it.
-- **Better/more tests and error handling**: This is an area that I'm *still improving on myself*. 
 - **Better search functionality**: Currently, the `/api/v1/books/search/{title}` endpoint offers very rudimentary search capability. For example, the search term should match the title of the book **exactly**, otherwise, you get a 404 (Not Found). 
-- Better approach for generating ISBNs: Currently,we are just picking random numbers that don't conform to the ISBN standards. You can read more about [ISBN on Wikipedia](https://en.wikipedia.org/wiki/ISBN).
+- Better way of generating ISBNs: Currently,we are just picking random numbers that don't conform to the ISBN standards. You can read more about [ISBN on Wikipedia](https://en.wikipedia.org/wiki/ISBN).
+- **More/better tests and error handling**: This is an area that I'm *still improving on myself*.
 
 >Note: These areas can also serve as exercises to the reader.
 
