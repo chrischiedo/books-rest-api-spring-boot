@@ -1,8 +1,8 @@
 # Book REST API project
 
-This project implements a simple REST API using [Spring Boot](https://spring.io/projects/spring-boot) framework.
+This project implements a simple REST API using the [Spring Boot](https://spring.io/projects/spring-boot) framework.
 
-Check out the companion blog post, [How to deploy a Spring Boot application on a local Kubernetes cluster with minikube](https://chrischiedo.github.io/java-spring-boot-kubernetes-minikube).
+Check out the companion blog post: [How to deploy a Spring Boot application on a local Kubernetes cluster with minikube](https://chrischiedo.github.io/java-spring-boot-kubernetes-minikube).
 
 ## Running the application locally
 
