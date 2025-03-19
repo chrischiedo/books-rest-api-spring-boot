@@ -21,4 +21,6 @@ $ ./mvnw spring-boot:run
 
 ## Checking out OpenAPI/Swagger documentation
 
-Visit http://localhost:8080/swagger-ui/index.html on your browser to see the Swagger documentation for the API.
+Visit http://localhost:8080/swagger-ui/index.html on your browser to view the Swagger documentation for the API:
+
+<img width="2866" alt="books-api-swagger-docs" src="api-docs.png">
