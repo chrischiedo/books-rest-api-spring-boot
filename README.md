@@ -9,7 +9,7 @@ Check out the companion blog post: [How to deploy a Spring Boot application on a
 The first step is to clone the project:
 
 ```bash
-$ git clone https://github.com/chris-chiedo/books-rest-api-spring-boot.git
+$ git clone https://github.com/chrischiedo/books-rest-api-spring-boot.git
 ```
 
 After cloning the project, change into the project's root directory and then build and run the project using the Spring Boot Maven plugin:
