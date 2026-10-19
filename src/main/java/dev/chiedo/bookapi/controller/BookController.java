@@ -1,6 +1,8 @@
 package dev.chiedo.bookapi.controller;
 
-import dev.chiedo.bookapi.model.dto.BookDto;
+import dev.chiedo.bookapi.model.dto.BookCreateRequest;
+import dev.chiedo.bookapi.model.dto.BookResponse;
+import dev.chiedo.bookapi.model.dto.BookUpdateRequest;
 import dev.chiedo.bookapi.service.BookService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,7 +41,6 @@ public class BookController {
 
     private final BookService bookService;
 
-    // constructor injection
     public BookController(BookService bookService) {
         this.bookService = bookService;
     }
@@ -52,14 +53,14 @@ public class BookController {
                             responseCode = "200",
                             description = "Get all books",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = BookDto.class))),
+                                    schema = @Schema(implementation = BookResponse.class))),
                     @ApiResponse(
                             responseCode = "404",
                             description = "No books found",
                             content = @Content(mediaType = "application/json"))
             }
     )
-    public List<BookDto> getAllBooks() {
+    public List<BookResponse> getAllBooks() {
         return bookService.findAll();
     }
 
@@ -71,15 +72,15 @@ public class BookController {
                             responseCode = "200",
                             description = "Get Book by bookId",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = BookDto.class))),
+                                    schema = @Schema(implementation = BookResponse.class))),
                     @ApiResponse(
                             responseCode = "404",
                             description = "No Book found for the bookId provided",
                             content = @Content(mediaType = "application/json"))
             }
     )
-    public ResponseEntity<BookDto> getBookById(@PathVariable("bookId") long bookId) {
-        Optional<BookDto> optionalBook = bookService.findById(bookId);
+    public ResponseEntity<BookResponse> getBookById(@PathVariable("bookId") long bookId) {
+        Optional<BookResponse> optionalBook = bookService.findById(bookId);
 
         if (optionalBook.isPresent()) {
             LOGGER.info("Found book {}", optionalBook);
@@ -91,7 +92,6 @@ public class BookController {
     }
 
     @GetMapping("/search/{title}")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Returns a book given its title")
     @ApiResponses(
             value = {
@@ -99,19 +99,19 @@ public class BookController {
                             responseCode = "200",
                             description = "Found the book with the given title",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = BookDto.class))),
+                                    schema = @Schema(implementation = BookResponse.class))),
                     @ApiResponse(
                             responseCode = "404",
                             description = "Book with the particular title is not found",
                             content = @Content(mediaType = "application/json"))
             }
     )
-    public ResponseEntity<BookDto> getBookByTitle(@Parameter(description = "title of book to be searched", required = true) @PathVariable String title) {
-        BookDto book = bookService.findByTitle(title);
+    public ResponseEntity<BookResponse> getBookByTitle(@Parameter(description = "title of book to be searched", required = true) @PathVariable String title) {
+        Optional<BookResponse> optionalBook = bookService.findByTitle(title);
 
-        if (book != null) {
+        if (optionalBook.isPresent()) {
             LOGGER.info("Book with title {} found", title);
-            return ResponseEntity.ok(book);
+            return ResponseEntity.ok(optionalBook.get());
         } else {
             LOGGER.debug("No book found with title {}", title);
             return ResponseEntity.notFound().build();
@@ -126,30 +126,29 @@ public class BookController {
                             responseCode = "201",
                             description = "Book created successfully",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = BookDto.class))),
+                                    schema = @Schema(implementation = BookResponse.class))),
                     @ApiResponse(
                             responseCode = "400",
                             description = "Book already exists with bookId",
                             content = @Content(mediaType = "application/json")),
             }
     )
-    public ResponseEntity<Void> createBook(@RequestBody @Valid BookDto bookDto) {
-        bookService.save(bookDto);
+    public ResponseEntity<BookResponse> createBook(@RequestBody @Valid BookCreateRequest request, Authentication authentication) {
+        Long userId = Long.valueOf(authentication.getName());
+        BookResponse response = bookService.save(request, userId);
 
-        URI bookUrl = URI.create("/api/v1/books/" + bookDto.getBookId());
-
-        return ResponseEntity.created(bookUrl).build();
+        return ResponseEntity.created(URI.create("/api/v1/books/" + response.bookId())).body(response);
     }
 
     @PutMapping("/{bookId}")
-    @Operation(summary = "Updates an existing book")
+    @Operation(summary = "Updates an existing book owned by the current user or any book for an admin")
     @ApiResponses(
             value = {
                     @ApiResponse(
                             responseCode = "204",
                             description = "Book successfully updated",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = BookDto.class))),
+                                    schema = @Schema(implementation = BookResponse.class))),
                     @ApiResponse(
                             responseCode = "404",
                             description = "No Book found for bookId provided",
@@ -158,28 +157,27 @@ public class BookController {
     )
     public ResponseEntity<Void> updateBook(
             @PathVariable("bookId") long bookId,
-            @RequestBody @Valid BookDto bookDto) {
+            @RequestBody @Valid BookUpdateRequest request,
+            Authentication authentication) {
 
-        Optional<BookDto> optionalBook = bookService.findById(bookId);
+        Long userId = Long.valueOf(authentication.getName());
 
-        if (optionalBook.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+        boolean admin = authentication.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
 
-        bookService.update(bookId, bookDto);
+        bookService.update(bookId, request, userId, admin);
 
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{bookId}")
-    @Operation(summary = "Deletes an existing book by Id")
+    @Operation(summary = "Deletes an existing book by Id; admin only")
     @ApiResponses(
             value = {
                     @ApiResponse(
                             responseCode = "204",
                             description = "Book successfully deleted",
                             content = @Content(mediaType = "application/json",
-                                    schema = @Schema(implementation = BookDto.class))),
+                                    schema = @Schema(implementation = BookResponse.class))),
                     @ApiResponse(
                             responseCode = "404",
                             description = "No Book found for bookId provided",
@@ -187,14 +185,7 @@ public class BookController {
             }
     )
     public ResponseEntity<Void> deleteBook(@PathVariable("bookId") long bookId) {
-        Optional<BookDto> optionalBook = bookService.findById(bookId);
-
-        if (optionalBook.isEmpty()) {
-            LOGGER.debug("Book with id {} does not exist", bookId);
-            return ResponseEntity.notFound().build();
-        }
-
-        bookService.delete(optionalBook.get());
+        bookService.delete(bookId);
 
         LOGGER.info("Book deleted with id {}", bookId);
 

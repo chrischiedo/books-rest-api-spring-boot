@@ -1,88 +1,94 @@
 package dev.chiedo.bookapi.service;
 
-import dev.chiedo.bookapi.mapper.IMapper;
-import dev.chiedo.bookapi.model.dto.BookDto;
+import dev.chiedo.bookapi.model.dto.*;
 import dev.chiedo.bookapi.model.entity.BookEntity;
+import dev.chiedo.bookapi.model.entity.UserEntity;
 import dev.chiedo.bookapi.repository.BookRepository;
+import dev.chiedo.bookapi.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
 
 @Service
 public class BookServiceImpl implements BookService {
-
     private final BookRepository bookRepository;
-    private final IMapper<BookEntity, BookDto> bookMapper;
+    private final UserRepository userRepository;
 
-    // constructor injection
-    public BookServiceImpl(BookRepository bookRepository, IMapper<BookEntity, BookDto> bookMapper) {
+    public BookServiceImpl(BookRepository bookRepository, UserRepository userRepository) {
         this.bookRepository = bookRepository;
-        this.bookMapper = bookMapper;
-    }
-
-    @Override
-    public List<BookDto> findAll() {
-        List<BookEntity> employees = StreamSupport
-                .stream(
-                        bookRepository.findAll().spliterator(),
-                        false)
-                .toList();
-
-        return employees.stream()
-                .map(bookMapper::mapTo)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Optional<BookDto> findById(long bookId) {
-
-        return bookRepository.findById(bookId).map(bookMapper::mapTo);
-    }
-
-    @Override
-    public BookDto findByTitle(String title) {
-        BookEntity bookEntity = bookRepository.findByTitle(title);
-        return bookMapper.mapTo(bookEntity);
+        this.userRepository = userRepository;
     }
 
     @Override
     @Transactional
-    public void save(BookDto bookDto) {
-        BookEntity bookEntity = bookMapper.mapFrom(bookDto);
-        bookRepository.save(bookEntity);
+    public List<BookResponse> findAll() {
+        return StreamSupport.stream(bookRepository.findAll().spliterator(), false).map(this::toResponse).toList();
     }
 
     @Override
     @Transactional
-    public void update(long bookId, BookDto bookDto) {
-        // check if book exists
-        Optional<BookEntity> optionalBook = bookRepository.findById(bookId);
+    public Optional<BookResponse> findById(long bookId) {
+        return bookRepository.findById(bookId).map(this::toResponse);
+    }
 
-        if (optionalBook.isEmpty()) {
-            throw new RuntimeException("Book not found");
+    @Override
+    @Transactional
+    public Optional<BookResponse> findByTitle(String title) {
+        return Optional.ofNullable(bookRepository.findByTitle(title)).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public BookResponse save(BookCreateRequest request, Long ownerId) {
+        UserEntity owner = userRepository.findById(ownerId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+        BookEntity book = new BookEntity();
+        apply(book, request);
+        book.setOwner(owner);
+        return toResponse(bookRepository.save(book));
+    }
+
+    @Override
+    @Transactional
+    public void update(long bookId, BookUpdateRequest request, Long authenticatedUserId, boolean admin) {
+        BookEntity book = bookRepository.findById(bookId).orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+        if (!admin && !book.getOwner().getUserId().equals(authenticatedUserId)) {
+            throw new org.springframework.security.access.AccessDeniedException("You can only edit books you created");
         }
-
-        BookEntity bookEntity = optionalBook.get();
-
-        bookEntity.setBookId(bookId);
-        bookEntity.setTitle(bookDto.getTitle());
-        bookEntity.setAuthor(bookDto.getAuthor());
-        bookEntity.setDescription(bookDto.getDescription());
-        bookEntity.setIsbn(bookDto.getIsbn());
-
-        bookRepository.save(bookEntity);
+        apply(book, request);
+        bookRepository.save(book);
     }
 
     @Override
     @Transactional
-    public void delete(BookDto bookDto) {
-        BookEntity bookEntity = bookMapper.mapFrom(bookDto);
+    public void delete(long bookId) {
+        BookEntity book = bookRepository.findById(bookId).orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+        bookRepository.delete(book);
+    }
 
-        bookRepository.delete(bookEntity);
+    private void apply(BookEntity book, BookCreateRequest request) {
+        book.setTitle(request.title());
+        book.setAuthor(request.author());
+        book.setDescription(request.description());
+        book.setIsbn(request.isbn());
+    }
+    private void apply(BookEntity book, BookUpdateRequest request) {
+        book.setTitle(request.title());
+        book.setAuthor(request.author());
+        book.setDescription(request.description());
+        book.setIsbn(request.isbn());
+    }
+    private BookResponse toResponse(BookEntity book) {
+        UserEntity owner = book.getOwner();
+        return new BookResponse(
+                book.getBookId(),
+                book.getTitle(),
+                book.getAuthor(),
+                book.getDescription(),
+                book.getIsbn(),
+                owner.getUserId(),
+                owner.getUsername());
     }
 }
